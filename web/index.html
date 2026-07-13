@@ -167,7 +167,46 @@ body { background: var(--bg); color: var(--text); font-family: var(--font); min-
   </div>
 </div>
 
+<!-- Announcement modal -->
+<div id="announceOverlay" class="overlay">
+  <div class="alert-box" style="max-width:500px;text-align:left">
+    <h3 style="text-align:center;margin-bottom:12px;color:var(--accent)">📚 雅思词汇默写练习</h3>
+    <div style="font-size:13px;line-height:1.7;color:var(--text)">
+      <p style="margin-bottom:10px"><b>✨ 功能介绍</b></p>
+      <ul style="padding-left:20px;margin-bottom:10px">
+        <li>基于《雅思词汇绿宝书》的 2651 个单词</li>
+        <li>自动按 UTC+8 每日推进一课（2 个 List）</li>
+        <li>自动排除初中基础词（译林版可替换）</li>
+        <li>每日 50 词中译英默写 + 即时批改报告</li>
+        <li>历史记录、错词本复习、学习进度统计</li>
+      </ul>
+      <p style="margin-bottom:10px"><b>💻 macOS 原生应用</b></p>
+      <p style="margin-bottom:8px;color:var(--dim)">体验更好、性能更优的 macOS 桌面版：</p>
+      <p style="text-align:center;margin-bottom:10px">
+        <a href="https://github.com/Wolfzzzzz/English-learning_dmg_For-MacOS/releases" target="_blank"
+           style="display:inline-block;padding:8px 24px;background:var(--accent);color:#000;
+                  border-radius:6px;text-decoration:none;font-weight:700;font-size:14px">
+          ⬇️ 下载 DMG 安装包
+        </a>
+      </p>
+      <p style="margin-bottom:8px;font-size:12px;color:var(--dim);text-align:center">
+        或从 GitHub 克隆：<code style="background:#333;padding:2px 6px;border-radius:4px">git clone https://github.com/Wolfzzzzz/English-learning_dmg_For-MacOS.git</code>
+      </p>
+      <hr style="border-color:var(--border);margin:10px 0">
+      <p style="font-size:12px;color:var(--dim);text-align:center;line-height:1.6">
+        <b>作者</b>：Wolfzzzzz<br>
+        <b>邮箱</b>：zhang429500@icloud.com<br>
+        <b>软件版权</b> © Wolfzzzzz &nbsp;·&nbsp; <b>单词版权</b> © 新东方 & 译林出版社
+      </p>
+    </div>
+    <div class="btns" style="margin-top:14px">
+      <button class="btn-confirm" onclick="closeAnnounce()" style="width:100%;padding:10px">我知道了</button>
+    </div>
+  </div>
+</div>
+
 <!-- Alert overlay -->
+<div id="alertOverlay" class="overlay" onclick="if(event.target===this)closeAlert()">
 <div id="alertOverlay" class="overlay" onclick="if(event.target===this)closeAlert()">
   <div class="alert-box">
     <h3 id="alertTitle"></h3>
@@ -482,20 +521,59 @@ const App = {
   renderMistakes() {
     const el = document.getElementById('mistakesList');
     const reports = loadReports();
+    const retries = LS.get('retries', {});
     const allWrong = reports.flatMap(r =>
       (r.wrongItems||[]).map(w => ({...w, date: r.date, lesson: r.lesson}))
     );
     if (allWrong.length === 0) {
       el.innerHTML = '<div class="loading"><div>暂无错词 🎉</div></div>'; return;
     }
-    let html = '';
+
+    // Count unique wrong words across all lessons
+    const uniqueWords = [...new Set(allWrong.map(w=>w.en))];
+    const retryCount = Object.keys(retries).length;
+
+    let html = '<div style="margin-bottom:10px">';
+    html += '<button class="btn-grade" onclick="App.startReviewRetry()" style="font-size:14px;padding:10px">';
+    html += '📝 复习重默（共 ' + uniqueWords.length + ' 个错词）</button>';
+    if (retryCount > 0) {
+      html += '<div style="font-size:12px;color:var(--dim);margin-top:6px">已复习 ' + retryCount + ' 课</div>';
+    }
+    html += '</div>';
+
+    // Show retry comparison if available
+    for (const [lessonKey, ret] of Object.entries(retries)) {
+      const oldCount = ret.originalWrong.length;
+      const newCount = ret.newWrongItems.length;
+      html += '<div class="report-card" style="cursor:default;background:var(--bg);border:1px solid var(--border)">';
+      html += '<div style="width:100%">';
+      html += '<div style="display:flex;justify-content:space-between;font-weight:600;margin-bottom:4px">';
+      html += '<span>第 ' + ret.lesson + ' 课 · 复习结果</span>';
+      html += '<span>原错 ' + oldCount + ' → 复习后 ' + (oldCount - newCount) + ' 进步</span></div>';
+      // Show both old and new wrong words side by side
+      html += '<div style="font-size:12px;display:flex;gap:20px">';
+      if (ret.newWrongItems.length > 0) {
+        html += '<div style="flex:1"><span style="color:var(--wrong)">❌ 仍错：</span>';
+        ret.newWrongItems.forEach(w => { html += '<div>' + (w.pos||'') + ' ' + w.zh + ' → ' + w.en + '</div>'; });
+        html += '</div>';
+      } else {
+        html += '<div style="flex:1"><span style="color:var(--correct)">✅ 全部正确！</span></div>';
+      }
+      html += '</div></div></div>';
+    }
+
+    // Show all original wrong words
+    html += '<div style="font-size:13px;color:var(--dim);margin:8px 0 4px">错词列表：</div>';
     allWrong.reverse().forEach(w => {
-      html += `<div class="report-card" style="cursor:default">
-        <span>${w.zh}</span>
-        <span style="color:var(--wrong)">你填：${w.userAnswer||'（空）'}</span>
-        <span style="color:var(--correct)">正确：${w.en}</span>
-        <span style="color:var(--dim);font-size:12px">第${w.lesson}课</span>
-      </div>`;
+      // Check if this word was already retried and corrected
+      const wasCorrected = retries[String(w.lesson)] && !retries[String(w.lesson)].newWrongItems.some(nw => nw.en === w.en);
+      html += '<div class="report-card" style="cursor:default;' + (wasCorrected ? 'opacity:0.5' : '') + '">';
+      html += '<span>' + w.zh + '</span>';
+      html += '<span style="color:var(--wrong)">你填：' + (w.userAnswer||'（空）') + '</span>';
+      html += '<span style="color:var(--correct)">正确：' + w.en + '</span>';
+      html += '<span style="color:var(--dim);font-size:12px">第' + w.lesson + '课</span>';
+      if (wasCorrected) html += '<span style="color:var(--correct);font-size:11px">✅ 已订正</span>';
+      html += '</div>';
     });
     el.innerHTML = html;
   },
@@ -549,11 +627,133 @@ const App = {
     this.answers = {};
     this.report = null;
     this.prepareToday();
+
+  // Start retry review for all wrong words
+  startReviewRetry() {
+    const reports = loadReports();
+    const retries = LS.get('retries', {});
+    // Only get words from lessons NOT yet retried
+    const allWrong = reports.flatMap(r => {
+      if (retries[String(r.lesson)]) return [];
+      return (r.wrongItems||[]).map(w => ({...w, date: r.date, lesson: r.lesson}));
+    });
+
+    if (allWrong.length === 0) {
+      showAlert('info', '已全部复习完毕', '所有错词已经复习过了！去进度页看看吧。', null, '好的');
+      return;
+    }
+
+    const unique = [...new Map(allWrong.map(w => [w.en, w])).values()];
+    showAlert('retry', '复习重默确认', '将复习 ' + unique.length + ' 个错词（仅限未复习过的）。确认开始？', () => {
+      this.retryQuestions = unique;
+      this.retryAnswers = {};
+      this.retryReport = null;
+      this.showRetryUI();
+    }, '确认开始');
+  },
+
+  showRetryUI() {
+    const body = document.getElementById('dictationBody');
+    let html = '<div class="lesson-header" style="margin-bottom:8px">';
+    html += '<h2 style="color:var(--wrong)">📝 错词复习（' + this.retryQuestions.length + ' 个）</h2>';
+    html += '<div class="info"><span>完成后点击校对</span></div></div>';
+    html += '<div class="questions">';
+    this.retryQuestions.forEach((q, i) => {
+      html += '<div class="q-item"><span class="q-num">' + (i+1) + '.</span>';
+      html += '<span class="q-prompt">' + (q.pos?('<span class="pos">'+q.pos+'</span> '):'') + q.zh + '</span>';
+      html += '<span class="q-input"><input type="text" oninput="App.retryAnswers[' + i + ']=this.value"></span></div>';
+    });
+    html += '</div>';
+    html += '<div class="grade-area"><button class="btn-grade" onclick="App.doRetryGrade()">校 对</button></div>';
+    body.innerHTML = html;
+    // Switch to dictation tab
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
+    document.querySelector('[data-tab="dictation"]').classList.add('active');
+    document.getElementById('tab-dictation').classList.add('active');
+  },
+
+  doRetryGrade() {
+    const questions = this.retryQuestions;
+    const result = grade(questions, this.retryAnswers);
+    this.retryReport = result;
+
+    // Compare with original reports
+    const reports = loadReports();
+    const retries = LS.get('retries', {});
+    let lessonKeys = [];
+    questions.forEach(q => {
+      const k = String(q.lesson);
+      if (!lessonKeys.includes(k) && !retries[k]) lessonKeys.push(k);
+    });
+
+    // Create retry entry for each lesson
+    lessonKeys.forEach(k => {
+      const report = reports.find(r => r.lesson === parseInt(k));
+      if (!report) return;
+      const origWrong = report.wrongItems || [];
+      const newWrong = result.wrongItems.filter(w => origWrong.some(ow => ow.en === w.en));
+      retries[k] = {
+        lesson: parseInt(k),
+        date: report.date,
+        originalWrong: origWrong,
+        newWrongItems: newWrong,
+        reviewedAt: new Date().toISOString()
+      };
+    });
+    LS.set('retries', retries);
+
+    // Show retry report
+    this.renderRetryReport(result);
+  },
+
+  renderRetryReport(result) {
+    const body = document.getElementById('dictationBody');
+    let html = '<div class="lesson-header" style="margin-bottom:8px">';
+    html += '<h2 style="color:var(--accent)">📊 复习报告</h2></div>';
+    html += '<div class="report"><div class="acc">';
+    html += '<span class="acc-text">正确率：' + Math.round(result.accuracy*100) + '%（' + result.correct + '/' + result.total + '）</span>';
+    const improved = result.wrongItems.length;
+    html += '<span class="acc-wrong">仍错 ' + improved + ' 个</span></div>';
+
+    const reports = loadReports();
+    const retries = LS.get('retries', {});
+    // Show per-lesson comparison
+    for (const [k, ret] of Object.entries(retries)) {
+      if (!ret || !ret.reviewedAt) continue;
+      const oldC = ret.originalWrong.length;
+      const newC = ret.newWrongItems.length;
+      const gain = oldC - newC;
+      html += '<div class="wrong-list" style="margin-top:8px;padding:8px;background:var(--surface);border-radius:8px">';
+      html += '<div style="font-weight:600;margin-bottom:4px">第 ' + ret.lesson + ' 课：原错 ' + oldC + ' → 现错 ' + newC + '（' + (gain>=0?'进步':'退步') + ' ' + Math.abs(gain) + ' 个）</div>';
+      if (ret.newWrongItems.length > 0) {
+        html += '<div style="font-size:13px;color:var(--wrong)">仍需练习：</div>';
+        ret.newWrongItems.forEach(w => {
+          html += '<div style="font-size:12px;padding:2px 0">' + (w.pos?' '+w.pos+' ':'') + w.zh + ' → <span style="color:var(--correct)">' + w.en + '</span></div>';
+        });
+      } else {
+        html += '<div style="color:var(--correct);font-weight:600">✅ 全部正确！</div>';
+      }
+      html += '</div>';
+    }
+
+    html += '<div style="margin-top:12px"><button class="btn-grade" onclick="App.prepareToday()" style="font-size:14px;padding:8px">返回今日课程</button></div>';
+    html += '</div>';
+    body.innerHTML = html;
+  },
   }
 };
 window.App = App;
 
+// ==============================
 // ============================================================
+// Announcement
+// ============================================================
+function closeAnnounce() {
+  localStorage.setItem('ielts_announce_shown', '1');
+  document.getElementById('announceOverlay').classList.remove('show');
+}
+==============================
 // Alert helpers
 // ============================================================
 let alertCallback = null;
@@ -600,6 +800,10 @@ function showHistoryDetail(lessonNum) {
     loadData();
     document.getElementById('app').style.display = 'block';
     App.init();
+    // Show announcement once
+    if (!localStorage.getItem('ielts_announce_shown')) {
+      document.getElementById('announceOverlay').classList.add('show');
+    }
   } catch(e) {
     document.body.innerHTML = `<div class="loading" style="padding:80px 20px">
       <div style="font-size:18px;margin-bottom:12px">⚠️ 数据加载失败</div>
