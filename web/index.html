@@ -543,7 +543,9 @@ const App = {
   // Factory reset
   resetAll() {
     LS.remove('reports');
-    LS.remove('anchorDate');
+    // Set anchor date to today -> restart from List 1-2
+    var d = getShanghaiDate();
+    LS.set('anchorDate', d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'));
     this.answers = {};
     this.report = null;
     this.prepareToday();
