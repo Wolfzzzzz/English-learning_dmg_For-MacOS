@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>雅思绿宝书默写练习</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: #1a1a2e; --card: #16213e; --surface: #0f3460;
+  --text: #e8e8e8; --dim: #8892b0; --accent: #4fc3f7;
+  --correct: #4caf50; --wrong: #ef5350; --border: #2a2a4a;
+  --radius: 10px; --font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+body { background: var(--bg); color: var(--text); font-family: var(--font); min-height: 100vh; }
+.app { max-width: 760px; margin: 0 auto; padding: 8px 12px 20px; }
+
+/* Tabs */
+.tabs { display: flex; gap: 0; background: var(--surface); border-radius: var(--radius) var(--radius) 0 0; overflow: hidden; }
+.tab-btn { flex:1; padding:12px 8px; border:none; background:transparent; color:var(--dim);
+  font-size:14px; font-weight:600; cursor:pointer; transition:.2s; border-bottom:3px solid transparent; }
+.tab-btn.active { color:var(--accent); border-bottom-color:var(--accent); background:rgba(79,195,247,.08); }
+.tab-btn:hover { color:var(--text); }
+.tab-content { display:none; background:var(--card); border-radius:0 0 var(--radius) var(--radius); padding:16px; min-height:500px; }
+.tab-content.active { display:block; }
+
+/* Header */
+.lesson-header { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center;
+  padding:12px 14px; background:var(--surface); border-radius:var(--radius); margin-bottom:12px; }
+.lesson-header h2 { font-size:15px; color:var(--accent); }
+.lesson-header .info { display:flex; gap:12px; font-size:13px; color:var(--dim); }
+.lesson-header .status { padding:3px 10px; border-radius:20px; font-size:12px; font-weight:600; }
+.status.pending { background:rgba(79,195,247,.15); color:var(--accent); }
+.status.done { background:rgba(76,175,80,.15); color:var(--correct); }
+
+/* Questions */
+.questions { margin:8px 0; }
+.q-item { display:flex; align-items:center; gap:10px; padding:8px 10px; border-bottom:1px solid var(--border); }
+.q-item:last-child { border-bottom:none; }
+.q-num { font-size:12px; color:var(--dim); width:28px; text-align:right; flex-shrink:0; }
+.q-prompt { flex-shrink:0; font-size:13px; color:var(--text); min-width:140px; max-width:180px; }
+.q-prompt .pos { color:var(--accent); font-size:12px; }
+.q-input { flex:1; min-width:120px; }
+.q-input input { width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:6px;
+  background:var(--bg); color:var(--text); font-size:14px; outline:none; transition:.2s; }
+.q-input input:focus { border-color:var(--accent); }
+.q-input input.correct { border-color:var(--correct); background:rgba(76,175,80,.08); }
+.q-input input.wrong { border-color:var(--wrong); background:rgba(239,83,80,.08); }
+.q-result { font-size:12px; flex-shrink:0; width:70px; text-align:center; }
+.q-result.correct { color:var(--correct); }
+.q-result.wrong { color:var(--wrong); }
+
+/* Grade button & report */
+.grade-area { margin-top:12px; }
+.btn-grade { width:100%; padding:12px; border:none; border-radius:var(--radius);
+  background:var(--accent); color:#000; font-size:16px; font-weight:700; cursor:pointer; transition:.2s; }
+.btn-grade:hover { filter:brightness(1.15); }
+.btn-grade:disabled { opacity:.4; cursor:not-allowed; }
+.btn-danger { padding:10px 20px; border:1px solid var(--wrong); border-radius:var(--radius);
+  background:transparent; color:var(--wrong); font-size:13px; font-weight:600; cursor:pointer; transition:.2s; }
+.btn-danger:hover { background:rgba(239,83,80,.12); }
+
+.report { margin-top:12px; padding:14px; border-radius:var(--radius); background:var(--surface); }
+.acc { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+.acc-text { font-size:15px; font-weight:700; }
+.acc-wrong { color:var(--wrong); font-size:13px; }
+.wrong-list { margin-top:8px; }
+.wrong-item { display:grid; grid-template-columns:28px 1fr 1fr; gap:6px; padding:4px 0; font-size:13px; border-bottom:1px solid var(--border); }
+.wrong-item:last-child { border:none; }
+.wrong-item .user { color:var(--wrong); }
+.wrong-item .correct { color:var(--correct); }
+
+/* History, Mistakes, Progress */
+.stat-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px; }
+.stat-card { padding:14px; border-radius:var(--radius); background:var(--surface); text-align:center; }
+.stat-card .num { font-size:22px; font-weight:700; color:var(--accent); }
+.stat-card .label { font-size:12px; color:var(--dim); margin-top:4px; }
+.progress-bar-wrap { height:20px; border-radius:10px; background:var(--bg); overflow:hidden; margin:8px 0; }
+.progress-bar-fill { height:100%; border-radius:10px; background:linear-gradient(90deg,var(--wrong),var(--accent),var(--correct)); transition:width .5s; }
+
+.report-list { max-height:360px; overflow-y:auto; }
+.report-card { padding:10px 12px; border-radius:8px; background:var(--surface); margin-bottom:6px; display:flex; justify-content:space-between; font-size:13px; cursor:pointer; }
+.report-card:hover { filter:brightness(1.1); }
+
+/* Alert overlay */
+.overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:100; align-items:center; justify-content:center; }
+.overlay.show { display:flex; }
+.alert-box { background:var(--card); border-radius:var(--radius); padding:24px; max-width:400px; width:90%; text-align:center; }
+.alert-box h3 { margin-bottom:8px; font-size:16px; }
+.alert-box p { color:var(--dim); font-size:14px; margin-bottom:16px; line-height:1.5; }
+.alert-box .btns { display:flex; gap:10px; justify-content:center; }
+.alert-box button { padding:8px 24px; border:none; border-radius:6px; font-size:14px; font-weight:600; cursor:pointer; }
+.alert-box .btn-cancel { background:var(--surface); color:var(--text); }
+.alert-box .btn-confirm { background:var(--accent); color:#000; }
+.alert-box .btn-danger-c { background:var(--wrong); color:#fff; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width:6px; }
+::-webkit-scrollbar-track { background:var(--bg); }
+::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+
+/* Loading */
+.loading { text-align:center; padding:60px 20px; color:var(--dim); }
+.spinner { width:32px; height:32px; border:3px solid var(--border); border-top-color:var(--accent);
+  border-radius:50%; animation:spin .8s linear infinite; margin:12px auto; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+@media(max-width:600px){
+  .q-item { flex-wrap:wrap; }
+  .q-prompt { min-width:100%; max-width:100%; }
+  .q-input { min-width:100%; }
+  .q-result { width:100%; text-align:left; }
+}
+</style>
+</head>
+<body>
+
+<div id="app" class="app" style="display:none">
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="dictation">📝 默写</button>
+    <button class="tab-btn" data-tab="history">📋 历史</button>
+    <button class="tab-btn" data-tab="mistakes">⚠️ 错词本</button>
+    <button class="tab-btn" data-tab="progress">📊 进度</button>
+  </div>
+
+  <!-- Dictation -->
+  <div id="tab-dictation" class="tab-content active">
+    <div id="lessonHeader" class="lesson-header">
+      <h2 id="lessonTitle">加载中…</h2>
+      <div class="info">
+        <span id="lessonDate"></span>
+        <span id="lessonWords"></span>
+        <span id="lessonStatus" class="status pending">未开始</span>
+      </div>
+    </div>
+    <div id="dictationBody">
+      <div class="loading"><div class="spinner"></div><div>正在准备今日课程…</div></div>
+    </div>
+  </div>
+
+  <!-- History -->
+  <div id="tab-history" class="tab-content">
+    <h3 style="font-size:15px;margin-bottom:12px;color:var(--accent)">📋 历史练习报告</h3>
+    <div id="historyList" class="report-list"><div class="loading"><div>暂无记录</div></div></div>
+  </div>
+
+  <!-- Mistakes -->
+  <div id="tab-mistakes" class="tab-content">
+    <h3 style="font-size:15px;margin-bottom:12px;color:var(--wrong)">⚠️ 错词本</h3>
+    <div id="mistakesList" class="report-list"><div class="loading"><div>暂无错词</div></div></div>
+  </div>
+
+  <!-- Progress -->
+  <div id="tab-progress" class="tab-content">
+    <h3 style="font-size:15px;margin-bottom:12px;color:var(--accent)">📊 学习进度</h3>
+    <div class="stat-grid" id="statsGrid"></div>
+    <div id="progressBarWrap" style="margin-bottom:16px;display:none">
+      <div style="font-size:13px;color:var(--dim);margin-bottom:4px">总体正确率</div>
+      <div class="progress-bar-wrap"><div class="progress-bar-fill" id="progressBar"></div></div>
+      <div style="text-align:right;font-size:12px;color:var(--dim)" id="progressPct"></div>
+    </div>
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);text-align:center">
+      <button class="btn-danger" onclick="showAlert('reset','确认恢复出厂设置？','所有练习记录、历史报告和错词本将被永久清除，此操作不可撤销。',
+        ()=>{ App.resetAll(); }, '确认恢复' )">🗑️ 恢复出厂设置</button>
+    </div>
+  </div>
+</div>
+
+<!-- Alert overlay -->
+<div id="alertOverlay" class="overlay" onclick="if(event.target===this)closeAlert()">
+  <div class="alert-box">
+    <h3 id="alertTitle"></h3>
+    <p id="alertMsg"></p>
+    <div class="btns">
+      <button class="btn-cancel" onclick="closeAlert()">取消</button>
+      <button id="alertConfirmBtn" onclick="closeAlert()">确认</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// Storage
+// ============================================================
+const LS = {
+  get(k, def=null) { try { const v=localStorage.getItem('ielts_'+k); return v?JSON.parse(v):def; }catch{return def} },
+  set(k, v) { localStorage.setItem('ielts_'+k, JSON.stringify(v)) },
+  remove(k) { localStorage.removeItem('ielts_'+k) }
+};
+
+// ============================================================
+// Data Loading
+// ============================================================
+let VOCAB = null, JUNIOR = null, OVERRIDE = null;
+
+async function loadData() {
+  const [v,j,o] = await Promise.all([
+    fetch('data/vocab.json').then(r=>r.json()),
+    fetch('data/junior_high.json').then(r=>r.json()),
+    fetch('data/override_keep.json').then(r=>r.json()),
+  ]);
+  VOCAB = v; JUNIOR = new Set(j.words.map(w=>w.toLowerCase().trim()));
+  OVERRIDE = new Set(o.words.map(w=>w.toLowerCase().trim()));
+}
+
+// ============================================================
+// Course Schedule (UTC+8)
+// ============================================================
+function getShanghaiDate() {
+  const now = new Date();
+  const utc = now.getTime() + now.getTimezoneOffset()*60000;
+  return new Date(utc + 8*3600000);
+}
+
+function startOfDay(d) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function getAnchorDate() {
+  let saved = LS.get('anchorDate');
+  if (saved) return new Date(saved);
+  // Default: 2026-07-13
+  return new Date(2026, 6, 13);
+}
+
+function setAnchorDate(d) {
+  LS.set('anchorDate', d.toISOString().slice(0,10));
+}
+
+function daysOffset(today, anchor) {
+  const diff = startOfDay(today) - startOfDay(anchor);
+  return Math.max(0, Math.floor(diff / 86400000));
+}
+
+function getLessonInfo(dateStr) {
+  const anchor = getAnchorDate();
+  const today = dateStr ? new Date(dateStr + 'T00:00:00+08:00') : getShanghaiDate();
+  const offset = daysOffset(today, anchor);
+  const lessonNum = offset + 1;
+  const first = 17 + 2 * (lessonNum - 1);
+  const second = first + 1;
+  const maxId = Math.max(...Object.keys(VOCAB.lists).map(Number));
+  if (first > maxId || second > maxId) return null;
+  return { lesson: lessonNum, listA: first, listB: second, date: startOfDay(today).toISOString().slice(0,10) };
+}
+
+function formatDateCN(iso) {
+  const d = new Date(iso + 'T00:00:00+08:00');
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+// ============================================================
+// Word Selection
+// ============================================================
+function selectWords(listA, listB) {
+  const listAObj = VOCAB.lists[String(listA)];
+  const listBObj = VOCAB.lists[String(listB)];
+  if (!listAObj || !listBObj) return [];
+  let candidates = [...listAObj.words, ...listBObj.words];
+  // Exclude junior high
+  candidates = candidates.filter(w => !JUNIOR.has(w.en.toLowerCase()));
+  // Add back override
+  const kept = candidates.filter(w => OVERRIDE.has(w.en.toLowerCase()));
+  for (const w of kept) {
+    if (!candidates.includes(w)) candidates.push(w);
+  }
+  // Re-exclude but keep override
+  const excluded = candidates.filter(w => JUNIOR.has(w.en.toLowerCase()) && !OVERRIDE.has(w.en.toLowerCase()));
+  candidates = candidates.filter(w => !excluded.includes(w));
+  // Shuffle and take 50
+  for (let i = candidates.length-1; i>0; i--) {
+    const j = Math.floor(Math.random()*(i+1));
+    [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+  }
+  return candidates.slice(0, 50);
+}
+
+// ============================================================
+// Grading
+// ============================================================
+function grade(questions, answers) {
+  const total = questions.length;
+  let correct = 0;
+  const wrongItems = [];
+  questions.forEach((q, i) => {
+    const user = (answers[i]||'').trim();
+    const norm = s => s.toLowerCase().replace(/\s+/g, ' ').trim();
+    const isCorrect = norm(user) === norm(q.en) ||
+      (q.acceptableAnswers||[]).some(a => norm(user) === norm(a));
+    if (isCorrect) correct++;
+    else wrongItems.push({ index: i, en: q.en, zh: q.zh, pos: q.pos, userAnswer: user });
+  });
+  return { total, correct, accuracy: total>0 ? correct/total : 0, wrongItems };
+}
+
+// ============================================================
+// Persistence
+// ============================================================
+function loadReports() { return LS.get('reports', []); }
+function saveReport(r) {
+  let reports = loadReports();
+  const idx = reports.findIndex(x => x.date === r.date);
+  if (idx>=0) reports[idx] = r; else reports.push(r);
+  LS.set('reports', reports);
+}
+
+// ============================================================
+// App
+// ============================================================
+const App = {
+  lesson: null, questions: [], answers: {}, report: null,
+  init() {
+    // Tab switching
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
+        if (btn.dataset.tab === 'history') App.renderHistory();
+        if (btn.dataset.tab === 'mistakes') App.renderMistakes();
+        if (btn.dataset.tab === 'progress') App.renderProgress();
+      });
+    });
+    this.prepareToday();
+  },
+
+  prepareToday() {
+    const info = getLessonInfo();
+    if (!info) {
+      document.getElementById('dictationBody').innerHTML =
+        '<div class="loading"><div style="font-size:18px;margin-bottom:8px">🎉</div><div>所有课程已完成！</div></div>';
+      document.getElementById('lessonTitle').textContent = '已完成';
+      return;
+    }
+    this.lesson = info;
+    // Check if already completed today
+    const reports = loadReports();
+    const done = reports.find(r => r.date === info.date);
+    if (done) {
+      this.questions = done.questions || [];
+      this.answers = done.answers || {};
+      this.report = done.report || null;
+      this.renderLesson();
+      this.renderQuestions(true);
+      if (this.report) this.renderReport(this.report);
+      this.renderGradeBtn(true);
+      return;
+    }
+    // Select words
+    this.questions = selectWords(info.listA, info.listB);
+    this.answers = {};
+    this.report = null;
+    this.renderLesson();
+    this.renderQuestions(false);
+    this.renderGradeBtn(false);
+  },
+
+  renderLesson() {
+    const info = this.lesson;
+    const reports = loadReports();
+    const done = !!reports.find(r => r.date === info.date);
+    document.getElementById('lessonTitle').textContent =
+      `第 ${info.lesson} 课（List ${info.listA}–${info.listB}）`;
+    document.getElementById('lessonDate').textContent = formatDateCN(info.date) + ' UTC+8';
+    document.getElementById('lessonWords').textContent =
+      `今日单词：${this.questions.length} 个`;
+    const statusEl = document.getElementById('lessonStatus');
+    if (done) {
+      statusEl.textContent = '已完成 ✓';
+      statusEl.className = 'status done';
+    } else {
+      statusEl.textContent = this.report ? '已完成 ✓' : '未开始';
+      statusEl.className = this.report ? 'status done' : 'status pending';
+    }
+  },
+
+  renderQuestions(completed) {
+    const body = document.getElementById('dictationBody');
+    if (this.questions.length === 0) {
+      body.innerHTML = '<div class="loading"><div>当日无可练习的单词（已全部在初中词表内）</div></div>';
+      return;
+    }
+    let html = '<div class="questions">';
+    this.questions.forEach((q, i) => {
+      const userVal = this.answers[i] || '';
+      let inputHtml, resultHtml = '';
+      if (completed) {
+        const norm = s => s.toLowerCase().replace(/\s+/g,' ').trim();
+        const isC = norm(userVal) === norm(q.en) || (q.acceptableAnswers||[]).some(a=>norm(userVal)===norm(a));
+        const cls = isC ? 'correct' : 'wrong';
+        inputHtml = `<input type="text" class="${cls}" value="${userVal}" disabled>`;
+        resultHtml = `<span class="q-result ${cls}">${isC ? '✓' : '✗ '+q.en}</span>`;
+      } else {
+        inputHtml = `<input type="text" value="${userVal}" oninput="App.answers[${i}]=this.value">`;
+      }
+      html += `<div class="q-item">
+        <span class="q-num">${i+1}.</span>
+        <span class="q-prompt">${q.pos ? `<span class="pos">${q.pos}</span> ` : ''}${q.zh}</span>
+        <span class="q-input">${inputHtml}</span>
+        ${resultHtml}
+      </div>`;
+    });
+    html += '</div>';
+    body.innerHTML = html;
+  },
+
+  renderGradeBtn(completed) {
+    const body = document.getElementById('dictationBody');
+    if (completed && this.report) return; // already has report
+    if (completed) return; // completed but no report needed
+    // Check if all questions have answers
+    const allAnswered = this.questions.every((_, i) => (this.answers[i]||'').trim().length > 0);
+    if (allAnswered) {
+      body.innerHTML += `<div class="grade-area"><button class="btn-grade" onclick="showGradeConfirm()">校 对</button></div>`;
+    }
+  },
+
+  renderReport(r) {
+    const body = document.getElementById('dictationBody');
+    let html = `<div class="report">
+      <div class="acc">
+        <span class="acc-text">正确率：${Math.round(r.accuracy*100)}%（${r.correct} / ${r.total}）</span>
+        ${r.wrongItems.length>0 ? `<span class="acc-wrong">错误 ${r.wrongItems.length} 个</span>` : ''}
+      </div>`;
+    if (r.wrongItems.length > 0) {
+      html += `<div class="wrong-list">`;
+      r.wrongItems.forEach(w => {
+        html += `<div class="wrong-item">
+          <span>${w.index+1}.</span>
+          <span>${w.pos ? w.pos+' ' : ''}${w.zh}</span>
+          <span class="user">你填：${w.userAnswer||'（空）'}</span>
+          <span></span>
+          <span class="correct">正确：${w.en}</span>
+        </div>`;
+      });
+      html += `</div>`;
+    }
+    html += `</div>`;
+    body.innerHTML += html;
+  },
+
+  doGrade() {
+    const result = grade(this.questions, this.answers);
+    this.report = result;
+    // Save
+    saveReport({ date: this.lesson.date, lesson: this.lesson.lesson,
+      listA: this.lesson.listA, listB: this.lesson.listB,
+      total: result.total, correct: result.correct,
+      wrongItems: result.wrongItems,
+      questions: this.questions, answers: this.answers,
+      report: result });
+    this.renderLesson();
+    this.renderQuestions(true);
+    this.renderReport(result);
+  },
+
+  // History
+  renderHistory() {
+    const el = document.getElementById('historyList');
+    const reports = loadReports();
+    if (reports.length === 0) {
+      el.innerHTML = '<div class="loading"><div>暂无练习记录</div></div>'; return;
+    }
+    let html = '';
+    [...reports].reverse().forEach(r => {
+      const acc = r.total>0 ? Math.round(r.correct/r.total*100) : 0;
+      html += `<div class="report-card" onclick="showHistoryDetail(${r.lesson})">
+        <span>第 ${r.lesson} 课（List ${r.listA}–${r.listB}）</span>
+        <span>${formatDateCN(r.date)}</span>
+        <span>正确率 ${acc}%</span>
+        <span style="color:${r.wrongItems?.length>0?'var(--wrong)':'var(--correct)'}">
+          ${r.wrongItems?.length||0} 错</span>
+      </div>`;
+    });
+    el.innerHTML = html;
+  },
+
+  // Mistakes
+  renderMistakes() {
+    const el = document.getElementById('mistakesList');
+    const reports = loadReports();
+    const allWrong = reports.flatMap(r =>
+      (r.wrongItems||[]).map(w => ({...w, date: r.date, lesson: r.lesson}))
+    );
+    if (allWrong.length === 0) {
+      el.innerHTML = '<div class="loading"><div>暂无错词 🎉</div></div>'; return;
+    }
+    let html = '';
+    allWrong.reverse().forEach(w => {
+      html += `<div class="report-card" style="cursor:default">
+        <span>${w.zh}</span>
+        <span style="color:var(--wrong)">你填：${w.userAnswer||'（空）'}</span>
+        <span style="color:var(--correct)">正确：${w.en}</span>
+        <span style="color:var(--dim);font-size:12px">第${w.lesson}课</span>
+      </div>`;
+    });
+    el.innerHTML = html;
+  },
+
+  // Progress
+  renderProgress() {
+    const reports = loadReports();
+    const total = reports.length;
+    const totalWords = reports.reduce((s,r) => s+(r.total||0), 0);
+    const totalCorrect = reports.reduce((s,r) => s+(r.correct||0), 0);
+
+    // Streak
+    const dates = reports.map(r => r.date).sort().reverse();
+    let streak = 0, expected = null;
+    for (const d of dates) {
+      const dt = new Date(d+'T00:00:00+08:00');
+      if (expected === null) {
+        streak++;
+        expected = new Date(dt);
+        expected.setDate(expected.getDate()-1);
+      } else {
+        const diff = (expected - dt) / 86400000;
+        if (Math.abs(diff) < 0.5) { streak++; expected.setDate(expected.getDate()-1); }
+        else if (dt < expected) break;
+      }
+    }
+    if (dates.length === 0) streak = 0;
+
+    const acc = totalWords>0 ? Math.round(totalCorrect/totalWords*100) : 0;
+    document.getElementById('statsGrid').innerHTML = `
+      <div class="stat-card"><div class="num">${total}</div><div class="label">已学课程</div></div>
+      <div class="stat-card"><div class="num">${streak}</div><div class="label">连续练习（天）</div></div>
+      <div class="stat-card"><div class="num">${acc}%</div><div class="label">累计正确率</div></div>
+      <div class="stat-card"><div class="num">${totalWords}</div><div class="label">练习总词数</div></div>
+    `;
+    if (totalWords > 0) {
+      document.getElementById('progressBarWrap').style.display = 'block';
+      document.getElementById('progressBar').style.width = (totalCorrect/totalWords*100)+'%';
+      document.getElementById('progressPct').textContent = acc+'%';
+    } else {
+      document.getElementById('progressBarWrap').style.display = 'none';
+    }
+  },
+
+  // Factory reset
+  resetAll() {
+    LS.remove('reports');
+    LS.remove('anchorDate');
+    this.answers = {};
+    this.report = null;
+    this.prepareToday();
+  }
+};
+
+// ============================================================
+// Alert helpers
+// ============================================================
+let alertCallback = null;
+function showGradeConfirm() {
+  showAlert('grade', '确认提交批改？', '提交后将无法修改答案。', () => { App.doGrade(); }, '确认提交');
+}
+function showAlert(type, title, msg, onConfirm, confirmText) {
+  document.getElementById('alertTitle').textContent = title;
+  document.getElementById('alertMsg').textContent = msg;
+  const btn = document.getElementById('alertConfirmBtn');
+  btn.textContent = confirmText || '确认';
+  btn.className = type === 'reset' ? 'btn-danger-c' : 'btn-confirm';
+  alertCallback = onConfirm;
+  document.getElementById('alertOverlay').classList.add('show');
+}
+function closeAlert() {
+  document.getElementById('alertOverlay').classList.remove('show');
+  if (alertCallback) { const cb = alertCallback; alertCallback = null; cb(); }
+}
+
+// ============================================================
+// History detail
+// ============================================================
+function showHistoryDetail(lessonNum) {
+  const reports = loadReports();
+  const r = reports.find(x => x.lesson === lessonNum);
+  if (!r) return;
+  const acc = r.total>0 ? Math.round(r.correct/r.total*100) : 0;
+  let msg = `第 ${r.lesson} 课（List ${r.listA}–${r.listB}）\n日期：${formatDateCN(r.date)}\n正确率：${acc}%（${r.correct}/${r.total}）`;
+  if (r.wrongItems && r.wrongItems.length>0) {
+    msg += `\n\n错误单词：`;
+    r.wrongItems.forEach(w => {
+      msg += `\n  ${w.pos||''} ${w.zh} → 你填：${w.userAnswer||'（空）'}  正确：${w.en}`;
+    });
+  }
+  alert(msg);
+}
+
+// ============================================================
+// INIT
+// ============================================================
+(async function() {
+  try {
+    await loadData();
+    document.getElementById('app').style.display = 'block';
+    App.init();
+  } catch(e) {
+    document.body.innerHTML = `<div class="loading" style="padding:80px 20px">
+      <div style="font-size:18px;margin-bottom:12px">⚠️ 数据加载失败</div>
+      <div style="color:var(--dim);font-size:14px">${e.message}<br>
+      请确保通过本地服务器访问：<br>
+      <code style="background:#333;padding:4px 8px;border-radius:4px;display:inline-block;margin-top:8px">
+      cd ielts-web && python3 -m http.server 8080
+      </code></div>
+    </div>`;
+  }
+})();
+</script>
+</body>
+</html>
