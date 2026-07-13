@@ -110,7 +110,7 @@ public enum DictationConstants {
     }
 
     /// The starting list ID.
-    public static let startListId: Int = 17
+    public static let startListId: Int = 1
 
     /// Overflow policy.
     public static let overflowPolicy: OverflowPolicy = .stop

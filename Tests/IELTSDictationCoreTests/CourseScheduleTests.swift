@@ -19,8 +19,8 @@ final class CourseScheduleTests: XCTestCase {
 
         let ids = schedule.listIds(for: anchor)
         XCTAssertNotNil(ids)
-        XCTAssertEqual(ids?.0, 17)
-        XCTAssertEqual(ids?.1, 18)
+        XCTAssertEqual(ids?.0, 1)
+        XCTAssertEqual(ids?.1, 2)
         XCTAssertEqual(schedule.lessonNumber(for: anchor), 1)
     }
 
@@ -30,8 +30,8 @@ final class CourseScheduleTests: XCTestCase {
 
         let ids = schedule.listIds(for: day2)
         XCTAssertNotNil(ids)
-        XCTAssertEqual(ids?.0, 19)
-        XCTAssertEqual(ids?.1, 20)
+        XCTAssertEqual(ids?.0, 3)
+        XCTAssertEqual(ids?.1, 4)
         XCTAssertEqual(schedule.lessonNumber(for: day2), 2)
     }
 
@@ -41,8 +41,8 @@ final class CourseScheduleTests: XCTestCase {
 
         let ids = schedule.listIds(for: day3)
         XCTAssertNotNil(ids)
-        XCTAssertEqual(ids?.0, 21)
-        XCTAssertEqual(ids?.1, 22)
+        XCTAssertEqual(ids?.0, 5)
+        XCTAssertEqual(ids?.1, 6)
         XCTAssertEqual(schedule.lessonNumber(for: day3), 3)
     }
 
@@ -60,34 +60,36 @@ final class CourseScheduleTests: XCTestCase {
 
     func testOverflowStopReturnsNil() {
         var schedule = CourseSchedule(overflow: .stop)
-        schedule.maxListId = 20 // Only lists up to 20
+        schedule.maxListId = 6 // Only lists up to 6
 
-        let day1 = cal.date(from: DateComponents(year: 2026, month: 7, day: 13))!
-        let day2 = cal.date(from: DateComponents(year: 2026, month: 7, day: 14))!
+        let day0 = cal.date(from: DateComponents(year: 2026, month: 7, day: 13))!
+        let day1 = cal.date(from: DateComponents(year: 2026, month: 7, day: 14))!
+        let day2 = cal.date(from: DateComponents(year: 2026, month: 7, day: 15))!
+        let day3 = cal.date(from: DateComponents(year: 2026, month: 7, day: 16))!
 
-        // List 17-18 should be available
+        // List 1-2 should be available (day0)
+        XCTAssertNotNil(schedule.listIds(for: day0))
+        // List 3-4 should also be available (day1)
         XCTAssertNotNil(schedule.listIds(for: day1))
-        // List 19-20 should also be available
-        XCTAssertNotNil(schedule.listIds(for: day2))
 
         if let ids = schedule.listIds(for: day2) {
-            XCTAssertEqual(ids.0, 19)
-            XCTAssertEqual(ids.1, 20)
+            XCTAssertEqual(ids.0, 5)
+            XCTAssertEqual(ids.1, 6)
         }
 
-        // Overflow: 21 > 20, should return nil
-        let day3 = cal.date(from: DateComponents(year: 2026, month: 7, day: 15))!
+        // Overflow: 7 > 6, should return nil
         XCTAssertNil(schedule.listIds(for: day3))
     }
 
     func testOverflowLoopWraps() {
         var schedule = CourseSchedule(overflow: .loop)
-        schedule.maxListId = 20
+        schedule.maxListId = 6
 
-        let day3 = cal.date(from: DateComponents(year: 2026, month: 7, day: 15))!
+        // Day 3 (July 16): lists should be 7,8 -> wrap to 1,2
+        let day3 = cal.date(from: DateComponents(year: 2026, month: 7, day: 16))!
         let ids = schedule.listIds(for: day3)
         XCTAssertNotNil(ids)
-        // 21 % 20 = 1, 22 % 20 = 2
+        // 7 % 6 = 1, 8 % 6 = 2
         XCTAssertEqual(ids?.0, 1)
         XCTAssertEqual(ids?.1, 2)
     }
