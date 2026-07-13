@@ -73,7 +73,19 @@ A native macOS application for daily English word dictation practice based on th
 2. 将 `IELTSDictationApp.app` 拖入「应用程序」文件夹
 3. 首次打开如被 Gatekeeper 拦截：**右键 → 打开 → 仍要打开**
 
-### 方法 2：从源码构建
+### 方法 2：网页版（无需安装）
+
+在浏览器中打开 [`web/index.html`](web/index.html)（需通过本地服务器访问）：
+
+```bash
+cd English-learning_dmg_For-MacOS/web
+python3 -m http.server 8080
+# 浏览器访问 http://localhost:8080
+```
+
+功能与 macOS 原生版完全一致，数据存储在浏览器 localStorage。
+
+### 方法 3：从源码构建
 
 ```bash
 git clone https://github.com/Wolfzzzzz/English-learning_dmg_For-MacOS.git
