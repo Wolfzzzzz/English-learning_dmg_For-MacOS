@@ -414,11 +414,8 @@ const App = {
     const body = document.getElementById('dictationBody');
     if (completed && this.report) return; // already has report
     if (completed) return; // completed but no report needed
-    // Check if all questions have answers
-    const allAnswered = this.questions.every((_, i) => (this.answers[i]||'').trim().length > 0);
-    if (allAnswered) {
-      body.innerHTML += `<div class="grade-area"><button class="btn-grade" onclick="showGradeConfirm()">校 对</button></div>`;
-    }
+    // Always show the grade button (no conditional check)
+    body.innerHTML += `<div class="grade-area"><button class="btn-grade" onclick="showGradeConfirm()">校 对</button></div>`;
   },
 
   renderReport(r) {
@@ -552,6 +549,7 @@ const App = {
     this.prepareToday();
   }
 };
+window.App = App;
 
 // ============================================================
 // Alert helpers
