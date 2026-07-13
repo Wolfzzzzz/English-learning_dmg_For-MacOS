@@ -1,0 +1,41 @@
+sequenceDiagram
+    autonumber
+    actor User
+    participant App as IELTSDictationApp(@main)
+    participant VM as DictationViewModel
+    participant Sched as CourseSchedule
+    participant Vocab as Vocabulary
+    participant JH as JuniorHighWordSet
+    participant Sel as WordSelector
+    participant Sess as DictationSession
+    participant Grade as Grading
+    participant Store as ReportStore
+
+    Note over App: 启动 (didFinishLaunching / .onAppear)
+    App->>VM: init(store:, dateProvider:)
+    VM->>Sched: listIds(for: dateProvider.now)  %% UTC+8
+    Sched-->>VM: (listA, listB) 或 nil
+    VM->>Vocab: load(Bundle.module)
+    Vocab-->>VM: Vocabulary
+    VM->>Vocab: lists([listA, listB])
+    Vocab-->>VM: [VocabList, VocabList]
+    VM->>JH: load(Bundle.module)
+    JH-->>VM: JuniorHighWordSet
+    VM->>Sel: select(lists, excluding: JH, shuffle:false)
+    Sel-->>VM: [Word]  (≤50，不足则全取)
+    VM->>Sess: init(lesson, questions)
+    Sess-->>VM: DictationSession
+    VM-->>App: 渲染 HeaderView + QuestionListView
+
+    loop 50 题
+        User->>VM: 输入答案(index, text)
+        VM->>Sess: submit(text, at: index)
+    end
+
+    User->>App: 点击「校对」
+    App->>VM: grade()
+    VM->>Grade: grade(session, rule: .default)
+    Grade-->>VM: GradingReport(正确率, 错词)
+    VM->>Store: save(DailyReport(from report))
+    Store-->>VM: ok
+    VM-->>App: 展开 GradingReportView（正确率 + 错词列表）

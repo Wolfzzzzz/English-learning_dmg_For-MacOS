@@ -1,0 +1,37 @@
+# Swift / Xcode
+*.xcworkspace
+xcuserdata/
+DerivedData/
+.build/
+*.app
+
+# macOS
+.DS_Store
+*.swp
+*.swo
+*~
+
+# IDEs
+.idea/
+*.iml
+.vscode/
+*.xcuserdata
+
+# Dependencies
+Packages/
+Package.resolved
+
+# Build artifacts
+/build/
+/obj/
+*.o
+*.d
+*.dia
+*.LinkFileList
+
+# OCR output (large, generated)
+tools/ocr_output.txt
+
+# Logs & temp
+*.log
+/tmp/

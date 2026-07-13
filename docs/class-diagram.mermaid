@@ -1,0 +1,110 @@
+classDiagram
+    class Word {
+        +String en
+        +String zh
+        +String? pos
+        +Int listId
+        +[String]? acceptableAnswers
+    }
+    class VocabList {
+        +Int id
+        +[Word] words
+    }
+    class Vocabulary {
+        +[Int:VocabList] lists
+        +load(Bundle) Vocabulary
+        +lists([Int]) [VocabList]
+    }
+    class JuniorHighWordSet {
+        +Set~String~ words
+        +load(Bundle) JuniorHighWordSet
+        +contains(String) Bool
+    }
+    class DateProvider {
+        <<interface>>
+        +now Date
+    }
+    class CourseSchedule {
+        +Date anchorDate
+        +Int startListId
+        +OverflowPolicy overflow
+        +daysOffset(Date, Calendar) Int
+        +lessonNumber(Date) Int
+        +listIds(Date) (Int,Int)?
+    }
+    class WordSelector {
+        +Int dailyTarget
+        +select([VocabList], JuniorHighWordSet, Bool) [Word]
+    }
+    class Lesson {
+        +Int number
+        +String dateUTC8
+        +[Int] listIds
+        +[Word] questions
+    }
+    class DictationSession {
+        -[Int:String] answers
+        +lesson Lesson
+        +submit(String, Int)
+        +isComplete Bool
+    }
+    class AnswerRule {
+        +Bool trimWhitespace
+        +Bool caseInsensitive
+        +Bool allowMultiple
+    }
+    class GradingReport {
+        +Int totalCount
+        +Int correctCount
+        +Double accuracy
+        +[WrongItem] wrongItems
+    }
+    class WrongItem {
+        +Int index
+        +Word word
+        +String userAnswer
+    }
+    class Grading {
+        <<utility>>
+        +grade(DictationSession, AnswerRule) GradingReport
+        +isCorrect(String, Word, AnswerRule) Bool
+    }
+    class ReportStore {
+        <<interface>>
+        +save(DailyReport)
+        +loadAll() [DailyReport]
+        +mistakes() [WrongItem]
+    }
+    class FileReportStore {
+        +save(DailyReport)
+        +loadAll() [DailyReport]
+    }
+    class InMemoryReportStore {
+        +save(DailyReport)
+        +loadAll() [DailyReport]
+    }
+    class DailyReport {
+        +Int lessonNumber
+        +String dateUTC8
+        +Int totalCount
+        +Int correctCount
+        +[WrongItem] wrongItems
+        +Date createdAt
+    }
+
+    Vocabulary "1" *-- "many" VocabList : contains
+    VocabList "1" *-- "many" Word : contains
+    Lesson "1" *-- "many" Word : questions
+    DictationSession --> Lesson : has
+    WrongItem --> Word : refers
+    GradingReport "1" *-- "many" WrongItem : lists
+    DailyReport "1" *-- "many" WrongItem : stores
+    Grading ..> DictationSession : grades
+    Grading ..> AnswerRule : uses
+    WordSelector ..> JuniorHighWordSet : excludes
+    WordSelector ..> VocabList : reads
+    CourseSchedule ..> DateProvider : needs now
+    CourseSchedule ..> Lesson : produces listIds
+    FileReportStore ..|> ReportStore : conforms
+    InMemoryReportStore ..|> ReportStore : conforms
+    Vocabulary ..> Word : loads
