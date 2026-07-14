@@ -2,11 +2,8 @@
 """
 extract_vocab.py — 雅思词汇绿宝书 OCR 文本 → vocab.json
 
-从 OCR 输出的纯文本中提取词条（英文单词 + 中文释义 + 词性），
-输出为应用随包加载的 vocab.json。
-
-策略: 每条词条只保留【主释义】（以词性标签开头的那行），
-       跳过所有 "记 / 搭 / 例 / 同 / 派 / 圆" 等附属内容。
+固定 OCR 文本对齐问题：每个英文词与其后方最近的中文释义配对，
+而非分别按数量配对后再对齐索引。
 
 用法:
   python3 extract_vocab.py --input tools/ocr_output.txt --output Sources/IELTSDictationCore/Resources/vocab.json
@@ -14,15 +11,17 @@ extract_vocab.py — 雅思词汇绿宝书 OCR 文本 → vocab.json
 
 import re, json, argparse
 
-# 保留中文 + 中文标点，去掉所有英文 / 数字 / 拉丁字符
 _KEEP_CHN = re.compile(r'[\u4e00-\u9fff…—，。、；：""''！？（）\-]')
 _CHN_STARTER = r'[\u4e00-\u9fff…—，。、；：""''！？（）\-]'
 
+POS_TAGS = r'|'.join([
+    r'n\.', r'a\.', r'v\.', r'ad\.', r'prep\.', r'conj\.',
+    r'int\.', r'vt\.', r'vi\.', r'num\.', r'art\.', r'pron\.',
+    r'pl\.', r'aux\.', r'det\.', r'abbr\.'
+])
 
 def extract_chinese_only(text: str) -> str:
-    """从字符串中提取中文字符和中文标点。"""
     return ''.join(_KEEP_CHN.findall(text))
-
 
 def extract(input_path: str, output_path: str) -> dict:
     with open(input_path, encoding="utf-8") as f:
@@ -31,9 +30,9 @@ def extract(input_path: str, output_path: str) -> dict:
     # 按 "Word List N" 标题分割
     sections = re.split(r'(Word List \d+)', text)
     if len(sections) < 3:
-        raise ValueError("未找到 Word List 标题，OCR 文本格式不符")
+        raise ValueError("未找到 Word List 标题")
 
-    # 构建 {list_id: content_text} 映射（同一 list 可能跨多页）
+    # 构建 list_id → content 映射
     list_map = {}
     for i in range(1, len(sections) - 1, 2):
         header = sections[i].strip()
@@ -41,15 +40,10 @@ def extract(input_path: str, output_path: str) -> dict:
         m = re.search(r'\d+', header)
         if m:
             lid = int(m.group())
-            list_map.setdefault(lid, "")
-            list_map[lid] += "\n" + content
-
-    # 词性标签（OCR 可能出现的常见缩写）
-    POS_TAGS = r'|'.join([
-        r'n\.', r'a\.', r'v\.', r'ad\.', r'prep\.', r'conj\.',
-        r'int\.', r'vt\.', r'vi\.', r'num\.', r'art\.', r'pron\.',
-        r'pl\.', r'aux\.', r'det\.', r'abbr\.'
-    ])
+            # 只保留 1-48 范围的实际词库（跳过目录页、词根预习等）
+            if 1 <= lid <= 48:
+                list_map.setdefault(lid, "")
+                list_map[lid] += "\n" + content
 
     lists_out = []
 
@@ -57,47 +51,47 @@ def extract(input_path: str, output_path: str) -> dict:
         content = list_map[lid]
         lines = content.splitlines()
 
-        # 步骤 A: 收集 "口" / "□" 标记的英文词
-        bullet_words = []
-        for l in lines:
+        # ===== 扫描行，为每个 bullet 词找到最近的下方中文释义 =====
+        # 先构建 bullet_words 列表 [(index, word), ...]
+        bullet_at = []  # [(line_idx, word)]
+        for li, l in enumerate(lines):
             ls = l.strip()
             m = re.match(r'^[□口]\s*([A-Za-z][A-Za-z\'-]*)', ls)
             if m:
                 w = m.group(1).lower().strip().rstrip("'\"")
                 if 1 <= len(w) <= 25:
-                    bullet_words.append(w)
+                    bullet_at.append((li, w))
 
-        # 步骤 B: 收集中文主释义（仅首行，跳过记/搭/例/同/派/圆等附属）
-        chinese_main = []
-        current_pos = None
-        for l in lines:
+        # 再构建 chinese_defs 列表 [(line_idx, pos, zh), ...]
+        defs_at = []
+        for li, l in enumerate(lines):
             ls = l.strip()
-            pos_m = re.match(rf'^({POS_TAGS})\s*({_CHN_STARTER}.*)', ls, re.I)
-            if pos_m:
-                pos_tag = pos_m.group(1).lower().rstrip('.')
-                chn_text = pos_m.group(2).strip()
-                # 截取中文部分
+            m = re.match(rf'^({POS_TAGS})\s*({_CHN_STARTER}.*)', ls, re.I)
+            if m:
+                pos_tag = m.group(1).lower().rstrip('.')
+                chn_text = m.group(2).strip()
                 chn_only = extract_chinese_only(chn_text)
-                chinese_main.append((pos_tag, chn_only))
-                current_pos = pos_tag
-            # 不再累积续行 — 跳过记/搭/例/同/派/圆 等附属内容
+                if chn_only:
+                    defs_at.append((li, pos_tag, chn_only))
 
-        # 步骤 C: 按顺序匹配英文词和中文主释义
+        # 配对：对每个 bullet word，找其后最近的 definition
         words_out = []
-        min_len = min(len(bullet_words), len(chinese_main))
-        for idx in range(min_len):
-            word_en = bullet_words[idx]
-            pos, full_zh = chinese_main[idx]
-            # 清理：去掉首尾标点
-            full_zh = full_zh.strip('；，、 。')
-            if not full_zh:
-                continue
-
-            words_out.append({
-                "en": word_en,
-                "zh": full_zh[:80],
-                "pos": pos + "." if not pos.endswith(".") else pos
-            })
+        for b_idx, b_word in bullet_at:
+            best_def = None
+            best_dist = float('inf')
+            for d_idx, d_pos, d_zh in defs_at:
+                if d_idx > b_idx and d_idx - b_idx < best_dist:
+                    best_def = (d_pos, d_zh)
+                    best_dist = d_idx - b_idx
+            if best_def:
+                pos, full_zh = best_def
+                full_zh = full_zh.strip('；，、 。')
+                if full_zh:
+                    words_out.append({
+                        "en": b_word,
+                        "zh": full_zh[:80],
+                        "pos": pos + "." if not pos.endswith(".") else pos
+                    })
 
         if words_out:
             lists_out.append({"id": lid, "words": words_out})
@@ -113,12 +107,11 @@ def extract(input_path: str, output_path: str) -> dict:
 
     return result
 
-
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="从 OCR 文本提取雅思绿宝书词库")
-    parser.add_argument("--input", required=True, help="OCR 输出文本路径")
-    parser.add_argument("--output", required=True, help="vocab.json 输出路径")
-    args = parser.parse_args()
+    p = argparse.ArgumentParser(description="从 OCR 文本提取雅思绿宝书词库")
+    p.add_argument("--input", required=True, help="OCR 输出文本路径")
+    p.add_argument("--output", required=True, help="vocab.json 输出路径")
+    args = p.parse_args()
 
     result = extract(args.input, args.output)
     total = sum(len(lst["words"]) for lst in result["lists"])
