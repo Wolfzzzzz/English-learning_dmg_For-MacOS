@@ -9,33 +9,33 @@ public struct WordSelector {
         self.dailyTarget = dailyTarget
     }
 
-    /// Select words from the given lists, excluding junior high vocabulary.
+    /// Select exactly `dailyTarget` words from the given lists, excluding junior high vocabulary.
+    /// Words are always shuffled. If fewer than `dailyTarget` words remain after exclusion,
+    /// the remaining words from the lists are included to reach the target.
     ///
     /// - Parameters:
     ///   - lists: The vocabulary lists to select from.
     ///   - excludingSet: Junior high words to exclude.
     ///   - overrideKeep: Set of words to keep even if they appear in the exclusion set.
-    ///   - shuffle: Whether to randomize the order.
-    /// - Returns: Selected words, up to `dailyTarget` (fewer if not enough available).
+    /// - Returns: Exactly `dailyTarget` words (or all available words if fewer than target).
     public func select(from lists: [VocabList],
                        excluding set: JuniorHighWordSet,
-                       overrideKeep: Set<String> = [],
-                       shuffle: Bool = false) -> [Word] {
-        // Collect all eligible words not in the junior high set (unless in overrideKeep)
-        let eligible = lists.flatMap { list in
-            list.words.filter { word in
-                let normalized = word.en.lowercased().trimmingCharacters(in: .whitespaces)
-                return overrideKeep.contains(normalized) || !set.contains(word.en)
-            }
+                       overrideKeep: Set<String> = []) -> [Word] {
+        let allWords = lists.flatMap { $0.words }
+
+        // Collect eligible words (not in junior high set, unless in overrideKeep)
+        var eligible = allWords.filter { word in
+            let normalized = word.en.lowercased().trimmingCharacters(in: .whitespaces)
+            return overrideKeep.contains(normalized) || !set.contains(word.en)
         }
 
-        // Shuffle if requested
-        var selected = eligible
-        if shuffle {
-            selected.shuffle()
+        // If fewer than dailyTarget, include remaining words to reach exactly the target
+        if eligible.count < dailyTarget {
+            let rest = allWords.filter { !eligible.contains($0) }
+            eligible.append(contentsOf: rest.shuffled().prefix(dailyTarget - eligible.count))
         }
 
-        // Take up to dailyTarget
-        return Array(selected.prefix(dailyTarget))
+        // Always shuffle
+        return eligible.shuffled().prefix(dailyTarget).map { $0 }
     }
 }
